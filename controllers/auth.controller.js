@@ -46,13 +46,13 @@ exports.createUser = async (req, res, next) => {
         const userData = req.body;
         const {username, email, password}  = req.body;
         if(!username){
-            return next(new ErrorHandler(400, 'You must fill your username!'));
+            return next(new Error(400, 'You must fill your username!'));
          }
          if(!email || !password){
-            return next(new ErrorHandler(400, 'Please enter an email and password!'));
+            return next(new Error(400, 'Please enter an email and password!'));
          }
          if(password.length < 7){
-            return next(new ErrorHandler(401, "Ops! Password must be at least 7 characters"))
+            return next(new Error(401, "Ops! Password must be at least 7 characters"))
          }
         const soltRound = await bcrypt.genSalt(10)    
         userData.password = await hashPassword(password, soltRound)
@@ -62,6 +62,37 @@ exports.createUser = async (req, res, next) => {
     } catch (err) {
         console.log(err);
         res.status(500).json(err.message)
+    }
+}
+
+const comparePassword = (password, hash) => {
+    return new Promise((resolve, reject)=> {
+        bcrypt.compare(password, hash, (err, res)=>{
+            if(err)reject(err);
+            resolve(res)
+        })
+    })
+}
+
+exports.login = async(req, res, next) => {
+    try {
+        const {email, password} = req.body;
+        if(!email) {
+            return next(new Error("Email is not provided!"))
+        }
+        if(!password) {
+            return next(new Error("Password is not provided!"))
+        }
+        const user = await authService.getUserByEmail(email).select('+password');
+        if(!user)return res.status(402).json({error: true, message: "user not found!"}) 
+        const matchPassword = await comparePassword(password, user.password);
+        if(!matchPassword) {
+            return res.status(403).json({error: true, message: 'Invalid Password!'})
+        }
+        user.password = null;
+        sendToken(user, 200, req, res);
+    } catch (err) {
+        res.status(500).json({error: true, message: "something went wrong!"})
     }
 }
 
